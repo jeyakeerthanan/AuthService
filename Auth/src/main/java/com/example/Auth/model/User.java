@@ -27,10 +27,10 @@ public class User implements UserDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_id")
-    private Long userId;
+    private Long id;
 
     @Column(name = "username", nullable = false)
-    private String username;
+    private String userName;
 
     @Column(name = "email", nullable = false)
     private String email;
@@ -38,10 +38,10 @@ public class User implements UserDetails {
     @Column(name = "password", nullable = false)
     private String password;
 
-    @Column(name = "email_verified")
+    @Column(name = "email_verified", unique = true, nullable = false)
     private boolean emailVerified;
 
-    @Column(name = "phone_number")
+    @Column(name = "phone_number", unique = true, nullable = false)
     private String phoneNumber;
 
     @Column(name = "phone_verified")
@@ -71,6 +71,11 @@ public class User implements UserDetails {
     @Override
     public String getPassword() {
         return password;
+    }
+
+    @Override
+    public String getUsername() {
+        return userName;
     }
 
     @Override

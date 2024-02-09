@@ -3,7 +3,8 @@ package com.example.Auth.controller;
 import com.example.Auth.model.dto.AuthenticationResponse;
 import com.example.Auth.model.dto.RegisterResponse;
 import com.example.Auth.model.User;
-import com.example.Auth.model.dto.VerificationResponse;
+import com.example.Auth.model.dto.ResponseDto;
+import com.example.Auth.model.dto.VerificationRequest;
 import com.example.Auth.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,16 +13,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/users")
+@RequestMapping("/api/v1/")
 public class UserController {
 
     @Autowired
     private UserService userService;
 
-    @PostMapping("/register")
+    @PostMapping("auth/register")
     public ResponseEntity<RegisterResponse> registerUser(@Valid @RequestBody User user) {
         try {
-            var savedUser= userService.registerUser(user);
+            var savedUser = userService.registerUser(user);
             var response = RegisterResponse.builder()
                     .email(savedUser.getEmail())
                     .phoneNumber(savedUser.getPhoneNumber())
@@ -31,35 +32,37 @@ public class UserController {
 
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(RegisterResponse.builder()
-                    .error("Registration Failed").build());
+                    .error(e.getMessage()).build());
         }
 
     }
 
-//    @PostMapping("/login")
-//    public ResponseEntity<AuthenticationResponse> loginUser(@RequestBody User user) {
-//      //  return userService.registerUser(user);
-//
-//    }
-
-    @GetMapping("/{userId}")
+    @GetMapping("get-user/{userId}")
     public User getUserById(@PathVariable Long userId) {
         return userService.getUserById(userId);
     }
 
-    @GetMapping("/verify/{verifier}")
-    public ResponseEntity<VerificationResponse> getVerified(@PathVariable String verifier) {
+    @PostMapping("auth/verify/{verifier}")
+    public ResponseEntity<ResponseDto> getVerifiedToken(@PathVariable String verifier) {
 
         try {
-            return ResponseEntity.ok().body(VerificationResponse
-                    .builder().verificationLink(userService.verify(verifier)).build());
-
+            userService.getVerifiedToken(verifier);
+            return ResponseEntity.ok().body(ResponseDto.builder().status("success").statusCode(200).build());
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(VerificationResponse.builder()
-                    .error("Verification Failed").build());
+            return ResponseEntity.badRequest().body(ResponseDto.builder().error(e.getMessage()).statusCode(400).build());
         }
     }
 
-    // Add more endpoints for updating user profile, deactivating/deleting account, etc.
+    @PostMapping("auth/verifying/{verifier}")
+    public ResponseEntity<AuthenticationResponse> getVerified(@RequestBody VerificationRequest verificationRequest) {
+
+        try {
+            var response = userService.verify(verificationRequest);
+            return ResponseEntity.ok().body(response);
+        } catch (Exception e) {
+            throw new RuntimeException("Verification Confirmation failed: " + e.getMessage());
+        }
+    }
+
 }
 
