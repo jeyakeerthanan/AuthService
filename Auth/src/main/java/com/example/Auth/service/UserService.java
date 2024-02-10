@@ -98,11 +98,15 @@ public class UserService {
             var user = userRepository.findByEmail(verifier);
             if (user.isPresent() && !user.get().getRoles().contains("ADMIN")) {
                 sendVerificationMail(user.get());
+            } else {
+                throw new RuntimeException("email Invalid ");
             }
         } else if (Validator.isValidPhoneNumber(verifier)) {
             var user = userRepository.findByPhoneNumber(verifier);
             if (user.isPresent() && !user.get().getRoles().contains("ADMIN")) {
                 sendVerificationSMS(user.get());
+            } else {
+                throw new RuntimeException("phone number Invalid ");
             }
         } else {
             throw new RuntimeException("Verifier Invalid");
@@ -112,7 +116,7 @@ public class UserService {
     private void sendVerificationSMS(User user) {
         var otp = generateOTP(6);
         saveTheVerification(otp, user);
-        verificationService.sendSMS(user.getPassword(), otp);
+        verificationService.sendSMS(user.getPhoneNumber(), otp);
     }
 
     private void sendVerificationMail(User user) {
@@ -195,7 +199,7 @@ public class UserService {
                 throw new RuntimeException("user not Exist for this Phone number:" + verifier.getVerifier());
             }
         } else {
-            throw new RuntimeException("Verifier invalid");
+            throw new RuntimeException("Verifier invalid Not a valid phone number or Email");
         }
         return null;
     }
