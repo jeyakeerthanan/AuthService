@@ -1,5 +1,6 @@
 package com.example.Auth.model.dto;
 
+import com.example.Auth.model.Status;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -11,8 +12,8 @@ import netscape.javascript.JSObject;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ResponseDto {
-    String status;
+    Status status;
     String error;
-    JSObject data;
-    int statusCode;
+    Object data;
+    String message;
 }

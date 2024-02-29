@@ -88,9 +88,8 @@ public class UserService {
         }
     }
 
-    public User getUserById(Long userId) {
-        return userRepository.findById(userId)
-                .orElseThrow();
+    public Optional<User> getUserById(UUID userId) {
+        return  userRepository.findByUserUniversal(userId);
     }
 
     public void getVerifiedToken(String verifier) {
@@ -184,7 +183,7 @@ public class UserService {
             if (user.isPresent()) {
                 var verified = checkTheVerification(user.get().getId(), verifier.getVerificationCode());
                 if (verified) {
-                    return createToken(user.get());
+                    return createToken(user.get(),verifier);
                 } else {
                     throw new RuntimeException("verification failed");
                 }
@@ -204,10 +203,10 @@ public class UserService {
         return null;
     }
 
-    private AuthenticationResponse createToken(User user) {
+    private AuthenticationResponse createToken(User user, VerificationRequest verifier) {
         //var jwtToken = jwtService.generateToken(user);
         var refreshToken = jwtService.generateRefreshToken(user);
-        saveUserToken(user, refreshToken);
+        saveUserToken(user, refreshToken, verifier);
         return buildAuthResponse(user, refreshToken);
     }
 
@@ -218,7 +217,7 @@ public class UserService {
                 .build();
     }
 
-    private void saveUserToken(User user, String refreshToken) {
+    private void saveUserToken(User user, String refreshToken, VerificationRequest verifier) {
         var token = Token.builder()
                 .token(refreshToken)
                 .tokenType(TokenType.BEARER)
@@ -226,6 +225,13 @@ public class UserService {
                 .revoked(false)
                 .createdAt(Timestamp.valueOf(LocalDateTime.now()))
                 .build();
+        user.setLastLogin(Timestamp.valueOf(LocalDateTime.now()));
+        if (Validator.isValidPhoneNumber(verifier.getVerifier())) {
+            user.setPhoneVerified(true);
+        } else if (Validator.isValidEmail(verifier.getVerifier())) {
+            user.setEmailVerified(true);
+        }
+        userRepository.save(user);
         tokenRepository.save(token);
 
     }

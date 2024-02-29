@@ -1,5 +1,7 @@
 package com.example.Auth.model;
 
+import com.example.Auth.model.dto.ResponseDto;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 import lombok.AllArgsConstructor;
@@ -15,6 +17,7 @@ import java.sql.Timestamp;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Data
@@ -29,27 +32,35 @@ public class User implements UserDetails {
     @Column(name = "user_id")
     private Long id;
 
-    @Column(name = "username", nullable = false)
+    @Column(name = "user_universal_id", nullable = false, unique = true)
+    private UUID userUniversal;
+
+    @Column(name = "username", nullable = false, unique = true)
     private String userName;
 
-    @Column(name = "email", nullable = false)
+    @Column(name = "email", nullable = false, unique = true)
     private String email;
 
+    @JsonIgnore
     @Column(name = "password", nullable = false)
     private String password;
 
-    @Column(name = "email_verified", unique = true, nullable = false)
+    @JsonIgnore
+    @Column(name = "email_verified")
     private boolean emailVerified;
 
     @Column(name = "phone_number", unique = true, nullable = false)
     private String phoneNumber;
 
+    @JsonIgnore
     @Column(name = "phone_verified")
     private boolean phoneVerified;
 
+    @JsonIgnore
     @Column(name = "last_login")
     private Timestamp lastLogin;
 
+    @JsonIgnore
     @Column(name = "registration_date")
     private Timestamp registrationDate;
 

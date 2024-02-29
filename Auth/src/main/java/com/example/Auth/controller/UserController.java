@@ -1,6 +1,7 @@
 package com.example.Auth.controller;
 
-import com.example.Auth.model.dto.AuthenticationResponse;
+import com.example.Auth.model.Status;
+
 import com.example.Auth.model.dto.RegisterResponse;
 import com.example.Auth.model.User;
 import com.example.Auth.model.dto.ResponseDto;
@@ -12,6 +13,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
+import static com.example.Auth.util.Constants.REGISTRATION_FAILED;
+import static com.example.Auth.util.Constants.REGISTRATION_SUCCESS;
+
 @RestController
 @RequestMapping("/api/v1/")
 public class UserController {
@@ -20,7 +26,7 @@ public class UserController {
     private UserService userService;
 
     @PostMapping("auth/register")
-    public ResponseEntity<RegisterResponse> registerUser(@Valid @RequestBody User user) {
+    public ResponseEntity<ResponseDto> registerUser(@Valid @RequestBody User user) {
         try {
             var savedUser = userService.registerUser(user);
             var response = RegisterResponse.builder()
@@ -28,18 +34,27 @@ public class UserController {
                     .phoneNumber(savedUser.getPhoneNumber())
                     .username(savedUser.getUsername())
                     .build();
-            return ResponseEntity.ok().body(response);
+            return ResponseEntity.ok().body(ResponseDto.builder()
+                    .status(Status.Success).data(response)
+                    .message(REGISTRATION_SUCCESS).build());
 
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(RegisterResponse.builder()
-                    .error(e.getMessage()).build());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDto.builder()
+                    .status(Status.Failed).error(e.getMessage())
+                    .message(REGISTRATION_FAILED).build());
         }
-
     }
 
     @GetMapping("get-user/{userId}")
-    public User getUserById(@PathVariable Long userId) {
-        return userService.getUserById(userId);
+    public ResponseEntity<ResponseDto> getUserById(@PathVariable UUID userId) {
+        var response = userService.getUserById(userId);
+        if (response.isPresent()) {
+            return ResponseEntity.ok().body(ResponseDto.builder()
+                    .status(Status.Success).message("User details get Successfully").data(response).build());
+        } else {
+            return ResponseEntity.ok().body(ResponseDto.builder()
+                    .status(Status.Failed).message("User not Found").build());
+        }
     }
 
     @PostMapping("auth/verify/{verifier}")
@@ -47,20 +62,25 @@ public class UserController {
 
         try {
             userService.getVerifiedToken(verifier);
-            return ResponseEntity.ok().body(ResponseDto.builder().status("success").statusCode(200).build());
+            return ResponseEntity.ok().body(ResponseDto.builder()
+                    .status(Status.Success).message("Verified Token has been sent").build());
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ResponseDto.builder().error(e.getMessage()).statusCode(400).build());
+            return ResponseEntity.ok().body(ResponseDto.builder().
+                    error(e.getMessage()).status(Status.Failed).build());
         }
     }
 
     @PostMapping("auth/verifying/{verifier}")
-    public ResponseEntity<AuthenticationResponse> getVerified(@RequestBody VerificationRequest verificationRequest) {
+    public ResponseEntity<ResponseDto> getVerified(@RequestBody VerificationRequest verificationRequest) {
 
         try {
             var response = userService.verify(verificationRequest);
-            return ResponseEntity.ok().body(response);
+            return ResponseEntity.ok().body(ResponseDto.builder().data(response)
+                    .message("User verified").status(Status.Success).build());
         } catch (Exception e) {
-            throw new RuntimeException("Verification Confirmation failed: " + e.getMessage());
+            return ResponseEntity.ok().body(ResponseDto.builder()
+                    .message("Verification Confirmation failed").status(Status.Failed).build());
+
         }
     }
 
