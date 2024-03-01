@@ -1,23 +1,24 @@
 package com.example.Auth.service;
 
 import com.example.Auth.config.JwtService;
-import com.example.Auth.model.Token;
-import com.example.Auth.model.TokenType;
-import com.example.Auth.model.User;
-import com.example.Auth.model.Verification;
+import com.example.Auth.model.*;
 import com.example.Auth.model.dto.AuthenticationResponse;
+import com.example.Auth.model.dto.LoginRequest;
 import com.example.Auth.model.dto.VerificationRequest;
+import com.example.Auth.repository.LoginAttemptRepository;
 import com.example.Auth.repository.TokenRepository;
 import com.example.Auth.repository.UserRepository;
 import com.example.Auth.repository.VerificationRepository;
 import com.example.Auth.util.Validator;
 import io.micrometer.common.util.StringUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -26,9 +27,7 @@ import java.security.NoSuchAlgorithmException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.Optional;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @Slf4j
@@ -59,16 +58,20 @@ public class UserService {
     @Value("${verification.expiration.time}")
     private long expirationTime;
 
+    @Autowired
+    private HttpServletRequest request;
+
+    @Autowired
+    private LoginAttemptRepository loginAttemptRepository;
     public User registerUser(User user) {
+        Set<Role> roleSet= new HashSet<>();
+        roleSet.add(Role.builder().roleName("User").build());
         validateUser(user);
         String hashedPassword = passwordEncoder.encode(user.getPassword());
         user.setPassword(hashedPassword);
         user.setPhoneVerified(false);
         user.setEmailVerified(false);
-
-//        var jwtToken = jwtService.generateToken(user);
-//        var refreshToken = jwtService.generateRefreshToken(user);
-//        saveUserToken(savedUser, jwtToken);
+        user.setRoles(roleSet);
         return userRepository.save(user);
     }
 
@@ -204,20 +207,32 @@ public class UserService {
     }
 
     private AuthenticationResponse createToken(User user, VerificationRequest verifier) {
-        //var jwtToken = jwtService.generateToken(user);
+        var jwtToken = jwtService.generateToken(user);
         var refreshToken = jwtService.generateRefreshToken(user);
         saveUserToken(user, refreshToken, verifier);
-        return buildAuthResponse(user, refreshToken);
+        return buildAuthResponse(user, refreshToken, jwtToken);
     }
 
-    private AuthenticationResponse buildAuthResponse(User user, String refreshToken) {
+    private AuthenticationResponse buildAuthResponse(User user, String refreshToken, String jwtToken) {
         return AuthenticationResponse.builder()
                 .user(user)
                 .token(refreshToken)
+                .accessToken(jwtToken)
                 .build();
     }
 
     private void saveUserToken(User user, String refreshToken, VerificationRequest verifier) {
+        user.setLastLogin(Timestamp.valueOf(LocalDateTime.now()));
+        if (Validator.isValidPhoneNumber(verifier.getVerifier())) {
+            user.setPhoneVerified(true);
+        } else if (Validator.isValidEmail(verifier.getVerifier())) {
+            user.setEmailVerified(true);
+        }
+        recordTokenAndAttempt(refreshToken, user);
+        userRepository.save(user);
+    }
+
+    private void recordTokenAndAttempt(String refreshToken, User user) {
         var token = Token.builder()
                 .token(refreshToken)
                 .tokenType(TokenType.BEARER)
@@ -225,15 +240,14 @@ public class UserService {
                 .revoked(false)
                 .createdAt(Timestamp.valueOf(LocalDateTime.now()))
                 .build();
-        user.setLastLogin(Timestamp.valueOf(LocalDateTime.now()));
-        if (Validator.isValidPhoneNumber(verifier.getVerifier())) {
-            user.setPhoneVerified(true);
-        } else if (Validator.isValidEmail(verifier.getVerifier())) {
-            user.setEmailVerified(true);
-        }
-        userRepository.save(user);
-        tokenRepository.save(token);
+        var loginAttempt = LoginAttempt.builder()
+                .success(true)
+                .ipAddress(request.getRemoteAddr())
+                .user(user)
+                .timestamp(LocalDateTime.now()).build();
 
+        loginAttemptRepository.save(loginAttempt);
+        tokenRepository.save(token);
     }
 
 
@@ -266,46 +280,62 @@ public class UserService {
         }
     }
 
-//    public AuthenticationResponse authenticate(AuthenticationRequest request) {
-//        authenticationManager.authenticate(
-//                new UsernamePasswordAuthenticationToken(
-//                        request.getEmail(),
-//                        request.getPassword()
-//                )
-//        );
-//        var user = userRepository.findByEmail(request.getEmail())
-//                .orElseThrow();
-//        var jwtToken = jwtService.generateToken(user);
-//        var refreshToken = jwtService.generateRefreshToken(user);
-//        revokeAllUserTokens(user);
-//        saveUserToken(user, jwtToken);
-//        return AuthenticationResponse.builder()
-//                .accessToken(jwtToken)
-//                .refreshToken(refreshToken)
-//                .build();
-//    }
 
-//    private void saveUserToken(User user, String jwtToken) {
-//        var token = Token.builder()
-//                .user(user)
-//                .token(jwtToken)
-//                .tokenType(TokenType.BEARER)
-//                .expired(false)
-//                .revoked(false)
-//                .build();
-//        tokenRepository.save(token);
-//    }
+    public AuthenticationResponse login(LoginRequest request) {
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        request.getEmail(),
+                        request.getPassword()
+                )
+        );
+        var user = userRepository.findByEmail(request.getEmail());
+               if (user.isPresent() && (user.get().isEmailVerified() || user.get().isPhoneVerified()) ) {
+                   var jwtToken = jwtService.generateToken(user.get());
+                   var refreshToken = jwtService.generateRefreshToken(user.get());
+                   revokeAllUserTokens(user.get());
+                   saveUserToken(user.get(), jwtToken);
+                   saveAttempt(user.get());
+                   return AuthenticationResponse.builder()
+                           .accessToken(jwtToken)
+                           .token(refreshToken)
+                           .build();
+               } else {
+                   throw new RuntimeException("User not found or not Verified");
+               }
 
-//    private void revokeAllUserTokens(User user) {
-//        var validUserTokens = tokenRepository.findAllValidTokenByUser(user.getUserId());
-//        if (validUserTokens.isEmpty())
-//            return;
-//        validUserTokens.forEach(token -> {
-//            token.setExpired(true);
-//            token.setRevoked(true);
-//        });
-//        tokenRepository.saveAll(validUserTokens);
-//    }
+    }
+
+    private void saveAttempt(User user) {
+        var loginAttempt = LoginAttempt.builder()
+                .success(true)
+                .ipAddress(request.getRemoteAddr())
+                .user(user)
+                .timestamp(LocalDateTime.now()).build();
+
+        loginAttemptRepository.save(loginAttempt);
+    }
+
+    private void saveUserToken(User user, String jwtToken) {
+        var token = Token.builder()
+                .user(user)
+                .token(jwtToken)
+                .tokenType(TokenType.BEARER)
+                .expired(false)
+                .revoked(false)
+                .build();
+        tokenRepository.save(token);
+    }
+
+    private void revokeAllUserTokens(User user) {
+        var validUserTokens = tokenRepository.findAllValidTokenByUser(user.getId());
+        if (validUserTokens.isEmpty())
+            return;
+        validUserTokens.forEach(token -> {
+            token.setExpired(true);
+            token.setRevoked(true);
+        });
+        tokenRepository.saveAll(validUserTokens);
+    }
 
 }
 

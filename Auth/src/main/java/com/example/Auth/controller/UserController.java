@@ -2,6 +2,7 @@ package com.example.Auth.controller;
 
 import com.example.Auth.model.Status;
 
+import com.example.Auth.model.dto.LoginRequest;
 import com.example.Auth.model.dto.RegisterResponse;
 import com.example.Auth.model.User;
 import com.example.Auth.model.dto.ResponseDto;
@@ -80,6 +81,20 @@ public class UserController {
         } catch (Exception e) {
             return ResponseEntity.ok().body(ResponseDto.builder()
                     .message("Verification Confirmation failed").status(Status.Failed).build());
+
+        }
+    }
+
+    @PostMapping("auth/login")
+    public ResponseEntity<ResponseDto> getLogin(@RequestBody LoginRequest loginRequest) {
+
+        try {
+            var response = userService.login(loginRequest);
+            return ResponseEntity.ok().body(ResponseDto.builder().data(response)
+                    .message("Login Successfully").status(Status.Success).build());
+        } catch (Exception e) {
+            return ResponseEntity.ok().body(ResponseDto.builder()
+                    .message("Login failed").status(Status.Failed).build());
 
         }
     }
