@@ -16,14 +16,14 @@ import java.sql.Timestamp;
 public class Verification {
     @Id
     @GeneratedValue
-    public Integer id;
+    private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
-    public User user;
+    private User user;
 
     @Column(unique = true)
-    public String token;
+    private String token;
 
     @Column(name = "created_date")
     private Timestamp createdAt;

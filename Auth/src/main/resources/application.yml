@@ -42,7 +42,15 @@ spring:
 verification:
   expiration:
     time: 10
-
+---
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    hostname: localhost
 ---
 spring:
   security:
@@ -62,6 +70,12 @@ spring:
             token-uri: https://accounts.google.com/o/oauth2/token
             user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
             user-name-attribute: email
+
+---
+spring:
+  application:
+    name: Auth-Service
+---
 
 
 

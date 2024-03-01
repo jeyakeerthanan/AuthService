@@ -38,6 +38,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-mail'
 	implementation 'com.twilio.sdk:twilio:8.22.0'
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+	implementation platform('org.springframework.cloud:spring-cloud-dependencies:2021.0.0')
 }
 
 tasks.named('bootBuildImage') {

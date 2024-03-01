@@ -5,10 +5,7 @@ import com.example.Auth.model.*;
 import com.example.Auth.model.dto.AuthenticationResponse;
 import com.example.Auth.model.dto.LoginRequest;
 import com.example.Auth.model.dto.VerificationRequest;
-import com.example.Auth.repository.LoginAttemptRepository;
-import com.example.Auth.repository.TokenRepository;
-import com.example.Auth.repository.UserRepository;
-import com.example.Auth.repository.VerificationRepository;
+import com.example.Auth.repository.*;
 import com.example.Auth.util.Validator;
 import io.micrometer.common.util.StringUtils;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,6 +25,7 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -63,15 +61,25 @@ public class UserService {
 
     @Autowired
     private LoginAttemptRepository loginAttemptRepository;
+    @Autowired
+    private RoleRepository roleRepository;
     public User registerUser(User user) {
-        Set<Role> roleSet= new HashSet<>();
-        roleSet.add(Role.builder().roleName("User").build());
+        Set<Role> roles = user.getRoles().stream()
+                .map(roleName -> {
+                    Role role = roleRepository.findByRoleName(roleName.getRoleName())
+                            .orElseThrow(() ->
+                                    new IllegalArgumentException("Role not found: " + roleName.getRoleName()));
+                    return role;
+                })
+                .collect(Collectors.toSet());
         validateUser(user);
         String hashedPassword = passwordEncoder.encode(user.getPassword());
         user.setPassword(hashedPassword);
+        user.setUserUniversal(UUID.randomUUID());
         user.setPhoneVerified(false);
         user.setEmailVerified(false);
-        user.setRoles(roleSet);
+        user.setRegistrationDate(Timestamp.valueOf(LocalDateTime.now()));
+        user.setRoles(roles);
         return userRepository.save(user);
     }
 
